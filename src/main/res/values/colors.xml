@@ -43,4 +43,5 @@
     <color name="intro_4">#26a69a</color>
     <color name="intro_5">#ffab00</color>
     <color name="intro_6">#303f9f</color>
+    <color name="highlight">#9e9e9e</color>
 </resources>

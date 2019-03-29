@@ -68,6 +68,7 @@ import org.amahi.anywhere.adapter.FilesFilterAdapter;
 import org.amahi.anywhere.adapter.ServerFilesAdapter;
 import org.amahi.anywhere.adapter.ServerFilesMetadataAdapter;
 import org.amahi.anywhere.bus.BusProvider;
+import org.amahi.anywhere.bus.DeleteFiles;
 import org.amahi.anywhere.bus.FileOpeningEvent;
 import org.amahi.anywhere.bus.FileOptionClickEvent;
 import org.amahi.anywhere.bus.OfflineCanceledEvent;
@@ -346,6 +347,11 @@ public class ServerFilesFragment extends Fragment implements
         } else {
             BusProvider.getBus().post(new OfflineFileDeleteEvent(getCheckedFile()));
         }
+    }
+
+    @Subscribe
+    public void receivedMessage(DeleteFiles deleteFiles) {
+        serverClient.deleteFile(getShare(), deleteFiles.getSelectedItems());
     }
 
     private void changeOfflineState(boolean enable) {

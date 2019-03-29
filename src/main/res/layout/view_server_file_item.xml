@@ -23,6 +23,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:background="?android:attr/activatedBackgroundIndicator"
     android:clickable="true"
+    android:id="@+id/linear_layout"
     android:focusable="true"
     android:foreground="?android:attr/selectableItemBackground"
     android:orientation="horizontal"

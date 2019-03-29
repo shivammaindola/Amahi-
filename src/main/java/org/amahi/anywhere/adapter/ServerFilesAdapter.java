@@ -21,28 +21,39 @@ package org.amahi.anywhere.adapter;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
+import android.media.ThumbnailUtils;
+import android.provider.MediaStore;
 import android.support.v4.content.LocalBroadcastManager;
+import android.support.v7.app.AlertDialog;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.view.ActionMode;
 import android.support.v7.widget.RecyclerView;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
 import android.text.format.Formatter;
+import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.squareup.otto.Subscribe;
 
 import org.amahi.anywhere.R;
 import org.amahi.anywhere.bus.AudioMetadataRetrievedEvent;
 import org.amahi.anywhere.bus.BusProvider;
+import org.amahi.anywhere.bus.DeleteFiles;
 import org.amahi.anywhere.db.entities.OfflineFile;
 import org.amahi.anywhere.db.repositories.OfflineFileRepository;
 import org.amahi.anywhere.server.client.ServerClient;
@@ -54,6 +65,7 @@ import org.amahi.anywhere.util.ServerFileClickListener;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
@@ -66,6 +78,64 @@ public class ServerFilesAdapter extends FilesFilterAdapter {
     private Context context;
     private int currentDownloadPosition = RecyclerView.NO_POSITION;
     private int progress;
+    String TAG = "MESSAGE";
+    private boolean multiSelect = false;
+    private boolean metadataavailable=false;
+    ArrayList<ServerFile> selectedItems = new ArrayList<>();
+    private ServerFile filechecked;
+
+    private ActionMode.Callback actionModeCallbacks = new ActionMode.Callback() {
+        @Override
+        public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+            Log.i("MESSAGE", "onCreateActionMode: ");
+            multiSelect = true;
+            menu.add("Delete");
+            return true;
+        }
+
+        @Override
+        public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+            return false;
+        }
+
+        @Override
+        public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+            Log.i(TAG, "onActionItemClicked: ");
+            int s = selectedItems.size();
+            String TAG = "MESSAGE";
+            Log.i(TAG, "value" + s);
+            if (s > 0) {
+                new AlertDialog.Builder(context)
+                    .setTitle(R.string.message_delete_file_title)
+                    .setMessage(R.string.message_delete_file_body)
+                    .setPositiveButton(R.string.button_yes, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            for (ServerFile file : selectedItems) {
+                                BusProvider.getBus().post(new DeleteFiles(file));
+                            }
+                            mode.finish();
+                        }
+                    }).setNegativeButton(R.string.button_no, null)
+                    .show();
+            } else
+                Toast.makeText(context, "Please select some files to delete!", Toast.LENGTH_SHORT).show();
+            Log.i(TAG, "after negative ");
+
+            return true;
+        }
+
+        @Override
+        public void onDestroyActionMode(ActionMode mode) {
+            multiSelect = false;
+            selectedItems.clear();
+            notifyDataSetChanged();
+        }
+    };
+
+    public ServerFilesAdapter() {
+
+    }
 
     public ServerFilesAdapter(Context context, ServerClient serverClient) {
         this.serverClient = serverClient;
@@ -120,6 +190,8 @@ public class ServerFilesAdapter extends FilesFilterAdapter {
 
     @Override
     public void onBindViewHolder(RecyclerView.ViewHolder holder, final int position) {
+
+        Log.i(TAG, "onBindViewHolder: ");
         final ServerFileViewHolder fileHolder = (ServerFileViewHolder) holder;
 
         final ServerFile file = filteredFiles.get(position);
@@ -164,11 +236,39 @@ public class ServerFilesAdapter extends FilesFilterAdapter {
         } else if (Mimes.match(file.getMime()) == Mimes.Type.AUDIO) {
             setUpAudioArt(file, fileHolder.fileIconView);
         } else {
-            fileHolder.fileIconView.setImageResource(Mimes.getFileIcon(file));
+            Bitmap thumbnail = ThumbnailUtils.createVideoThumbnail(file.getPath(), MediaStore.Images.Thumbnails.MINI_KIND);
+            fileHolder.fileIconView.setImageBitmap(thumbnail);
         }
 
-        fileHolder.itemView.setOnClickListener(view -> {
-            mListener.onItemClick(fileHolder.itemView, fileHolder.getAdapterPosition());
+        if (selectedItems.contains(filechecked)) {
+            fileHolder.linearLayout.setBackgroundResource(R.color.highlight);
+        } else {
+            fileHolder.linearLayout.setBackgroundResource(R.color.background_primary);
+        }
+
+        fileHolder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View view) {
+
+                ((AppCompatActivity) view.getContext()).startSupportActionMode(actionModeCallbacks);
+                fileHolder.selectItem(filechecked);
+                return true;
+            }
+        });
+
+
+        fileHolder.itemView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Log.i(TAG, "onClick: ");
+                if (multiSelect) {
+
+                    fileHolder.selectItem(filechecked);
+                }
+                else
+                    mListener.onItemClick(fileHolder.itemView, fileHolder.getAdapterPosition());
+
+            }
         });
 
         fileHolder.moreOptions.setOnClickListener(view -> {
@@ -249,7 +349,7 @@ public class ServerFilesAdapter extends FilesFilterAdapter {
     public class ServerFileViewHolder extends RecyclerView.ViewHolder {
         ImageView fileIconView, moreOptions;
         TextView fileTextView, fileSize, fileLastModified;
-        LinearLayout moreInfo;
+        LinearLayout moreInfo, linearLayout;
         ProgressBar progressBar;
 
         ServerFileViewHolder(View itemView) {
@@ -259,9 +359,23 @@ public class ServerFilesAdapter extends FilesFilterAdapter {
             fileSize = itemView.findViewById(R.id.file_size);
             fileLastModified = itemView.findViewById(R.id.last_modified);
             moreInfo = itemView.findViewById(R.id.more_info);
+            linearLayout = itemView.findViewById(R.id.linear_layout);
             moreOptions = itemView.findViewById(R.id.more_options);
             progressBar = itemView.findViewById(R.id.download_progress_bar);
-        }
-    }
 
+        }
+
+        void selectItem(final ServerFile item) {
+            if (multiSelect) {
+                if (selectedItems.contains(item)) {
+                    selectedItems.remove(item);
+                    linearLayout.setBackgroundResource(R.color.background_primary);
+                } else {
+                    selectedItems.add(item);
+                    linearLayout.setBackgroundResource(R.color.highlight);
+                }
+            }
+        }
+
+    }
 }
