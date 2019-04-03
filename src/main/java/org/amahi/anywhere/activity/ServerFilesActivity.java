@@ -41,6 +41,7 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Toast;
 
 import com.google.android.gms.cast.framework.CastContext;
 import com.google.android.gms.cast.framework.CastState;
@@ -415,24 +416,34 @@ public class ServerFilesActivity extends AppCompatActivity implements
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode == RESULT_OK) {
             switch (requestCode) {
-                case REQUEST_UPLOAD_IMAGE:
-                    if (data != null) {
-                        Uri selectedImageUri = data.getData();
-                        String filePath = PathUtil.getPath(this, selectedImageUri);
-                        if (filePath != null) {
-                            File file = new File(filePath);
-                            if (file.exists()) {
-                                ServerFilesFragment fragment = (ServerFilesFragment)
-                                    getSupportFragmentManager()
-                                        .findFragmentById(R.id.container_files);
-                                if (fragment.checkForDuplicateFile(file.getName())) {
-                                    showDuplicateFileUploadDialog(file);
-                                } else {
-                                    uploadFile(file);
+                case REQUEST_UPLOAD_IMAGE: {
+                    if (data.getClipData() != null) {
+
+                        int totalItemsSelected = data.getClipData().getItemCount();
+
+                        for (int i = 0; i < totalItemsSelected; i++) {
+                            Uri selectedImageUri = data.getClipData().getItemAt(i).getUri();
+                            String filePath = PathUtil.getPath(this, selectedImageUri);
+                            if (filePath != null) {
+                                File file = new File(filePath);
+                                if (file.exists()) {
+                                    ServerFilesFragment fragment = (ServerFilesFragment)
+                                        getSupportFragmentManager()
+                                            .findFragmentById(R.id.container_files);
+                                    if (fragment.checkForDuplicateFile(file.getName())) {
+                                        showDuplicateFileUploadDialog(file);
+                                    } else {
+                                        uploadFile(file);
+                                    }
                                 }
                             }
                         }
+                    }else if (data.getData() != null){
+
+                        Toast.makeText(ServerFilesActivity.this, "Selected Single File", Toast.LENGTH_SHORT).show();
+
                     }
+                }
                     break;
                 case REQUEST_CAMERA_IMAGE:
                     if (cameraImage.exists()) {
