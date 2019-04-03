@@ -418,6 +418,7 @@ public class ServerFilesActivity extends AppCompatActivity implements
             switch (requestCode) {
                 case REQUEST_UPLOAD_IMAGE: {
                     if (data.getClipData() != null) {
+                        uploadDialogFragment.show(getFragmentManager(), "progress_dialog");
 
                         int totalItemsSelected = data.getClipData().getItemCount();
 
@@ -425,23 +426,36 @@ public class ServerFilesActivity extends AppCompatActivity implements
                             Uri selectedImageUri = data.getClipData().getItemAt(i).getUri();
                             String filePath = PathUtil.getPath(this, selectedImageUri);
                             if (filePath != null) {
-                                File file = new File(filePath);
-                                if (file.exists()) {
+                                File uploadFile = new File(filePath);
+                                if (uploadFile.exists()) {
                                     ServerFilesFragment fragment = (ServerFilesFragment)
                                         getSupportFragmentManager()
                                             .findFragmentById(R.id.container_files);
-                                    if (fragment.checkForDuplicateFile(file.getName())) {
-                                        showDuplicateFileUploadDialog(file);
+                                    if (fragment.checkForDuplicateFile(uploadFile.getName())) {
+                                        showDuplicateFileUploadDialog(uploadFile, i);
                                     } else {
-                                        uploadFile(file);
+                                        uploadMultiFile(uploadFile, i);
                                     }
                                 }
                             }
                         }
-                    }else if (data.getData() != null){
+                    } else if (data.getData() != null) {
 
-                        Toast.makeText(ServerFilesActivity.this, "Selected Single File", Toast.LENGTH_SHORT).show();
-
+                        Uri selectedImageUri = data.getData();
+                        String filePath = PathUtil.getPath(this, selectedImageUri);
+                        if (filePath != null) {
+                            File file = new File(filePath);
+                            if (file.exists()) {
+                                ServerFilesFragment fragment = (ServerFilesFragment)
+                                    getSupportFragmentManager()
+                                        .findFragmentById(R.id.container_files);
+                                if (fragment.checkForDuplicateFile(file.getName())) {
+                                    showDuplicateFileUploadDialog(file, 0);
+                                } else {
+                                    uploadFile(file);
+                                }
+                            }
+                        }
                     }
                 }
                     break;
@@ -452,15 +466,21 @@ public class ServerFilesActivity extends AppCompatActivity implements
                     break;
             }
         }
+
     }
 
-    private void showDuplicateFileUploadDialog(final File file) {
+    private void showDuplicateFileUploadDialog(final File file, int i) {
         new AlertDialog.Builder(this)
             .setTitle(R.string.message_duplicate_file_upload)
             .setMessage(getString(R.string.message_duplicate_file_upload_body, file.getName()))
-            .setPositiveButton(R.string.button_yes, (dialog, which) -> uploadFile(file))
+            .setPositiveButton(R.string.button_yes, (dialog, which) -> uploadMultiFile(file,i))
             .setNegativeButton(R.string.button_no, null)
             .show();
+    }
+
+    private void uploadMultiFile(File uploadFile,int i) {
+        serverClient.uploadFile(i, uploadFile, getShare(), file);
+       // uploadDialogFragment.show(getFragmentManager(), "progress_dialog");
     }
 
     private void uploadFile(File uploadFile) {
